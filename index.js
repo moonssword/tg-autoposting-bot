@@ -4,73 +4,59 @@ const config = require('./config');
 const DB = require('./db');
 const cron = require('node-cron');
 const moment = require('moment');
+const AWS = require('aws-sdk');
 
 const bot = new TelegramBot(config.telegramBotToken, { polling: true });
-
+const s3 = new AWS.S3();
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Ежедевный запуск в 00:00
+cron.schedule('0 0 * * *', () => {
+    console.log('Запуск планировщика объявлений в 00:00');
+    schedulePosts();
+});
+
+//postAds();
+
 // Функция для отправки объявлений
 async function postAds() {
-    const adsByCity = await DB.getAds();
-    
-    for (const [city, ads] of Object.entries(adsByCity)) {
-        const channelId = config.cityChannels[city];
-        if (!channelId || ads.length === 0) continue;
+    const maxPosts = config.maxPostsInPeriod;
+    const channels = config.cityChannels;
 
-        const maxPosts = Math.min(config.maxPostsPerUpdate, ads.length);
-         for (let i = 0; i < maxPosts; i++) {
-            setTimeout(async () => {
+    const cities = Object.keys(channels);
+    const adsByCity = await DB.getAds(cities, maxPosts);
+
+    const groupedAdsByCity = adsByCity.reduce((acc, ad) => {
+        const city = ad.city.trim();
+        if (!acc[city]) {
+            acc[city] = [];
+        }
+        acc[city].push(ad);
+        return acc;
+    }, {});
+    
+    console.log(groupedAdsByCity)
+
+        for (let i = 0; i < maxPosts; i++) {
+        setTimeout(async () => {
+            for (const [city, ads] of Object.entries(groupedAdsByCity)) {
+                const channelId = channels[city];
+                
+                if (!channelId || ads.length === 0 || ads[i] === undefined) continue;
                 const ad = ads[i];
+
                 try {
-                    const message = `
-        🏠 *Сдается* ${data.house_type === 'apartment' ? data.rooms + '-комн.квартира' : data.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${data.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}, ${data.area} м², ${data.floor_current}/${data.floor_total} этаж${data.bed_capacity ? ', спальных мест - ' + data.bed_capacity : ''}
-        *Адрес:* г.${data.city}, ${data.district} р-н, ${data.microdistrict ? data.microdistrict + ', ' : ''} ${data.address}
-        *Сдает:* ${data.author === 'owner' ? 'собственник': 'посредник'}
-        *Цена:* ${data.price} ₸
-        *Депозит:* ${data.deposit ? `${data.deposit_value}%` : 'нет'}
-        *Телефон:* ${data.phone} ${[ data.whatsapp ? `[WhatsApp](https://api.whatsapp.com/send?phone=${data.phone})` : '', data.tg_username ? `[Telegram](https://t.me/${data.tg_username})` : ''].filter(Boolean).join(' ')}
-        🛋️ *Удобства*: ${[
-            data.fridge ? 'холодильник' : '',
-            data.washing_machine ? 'стиральная машина' : '',
-            data.microwave ? 'микроволновая печь' : '',
-            data.dishwasher ? 'посудомоечная машина' : '',
-            data.iron ? 'утюг' : '',
-            data.tv ? 'телевизор' : '',
-            data.wifi ? 'Wi-Fi' : '',
-            data.stove ? 'плита' : '',
-            data.shower ? 'душ' : '',
-            data.separate_toilet ? 'раздельный санузел' : '',
-            data.bed_linen ? 'постельное белье' : '',
-            data.towels ? 'полотенца' : '',
-            data.hygiene_items ? 'средства гигиены' : '',
-            data.kitchen ? 'кухня' : '',
-            data.wardrobe ? 'хранение одежды' : '',
-            data.sleeping_places ? 'спальные места' : ''
-        ].filter(Boolean).join(', ')}
-        📜 *Правила заселения*: ${[
-            data.family ? 'для семьи' : '',
-            data.single ? 'для одного' : '',
-            data.with_child ? 'можно с детьми' : '',
-            data.with_pets ? 'можно с животными' : '',
-            data.max_guests ? `макс. гостей: ${data.max_guests}` : ''
-        ].filter(Boolean).join(', ')}
-        📝 *Описание*
-        ${data.description}
-        `;
-        
-                    const trimmedMessage = message.length > 1024 
-                        ? message.substring(0, message.lastIndexOf(' ', 1024)) + '...' 
-                        : message;
+                    const message = generateAdMessage(ad);
         
                     // Ограничиваем количество фотографий до 10
                     /*const photoURLs = ad.photos.slice(0, 10);
                     const mediaGroup = photoURLs.map((url, index) => ({
                         type: 'photo',
                         media: url,
-                        caption: index === 0 ? trimmedMessage : '',
+                        caption: index === 0 ? message : '',
                         parse_mode: 'Markdown'
                     }));*/
         
@@ -78,35 +64,61 @@ async function postAds() {
                     const mediaGroup = photoNames.map((name, index) => ({
                         type: 'photo',
                         media: `${config.s3domain}/images/${name}`,
-                        caption: index === 0 ? trimmedMessage : '',
+                        caption: index === 0 ? message : '',
                         parse_mode: 'Markdown'
                     }));
+
+                    const messageGroup = await bot.sendMediaGroup(channelId, mediaGroup);
         
-                    // Отправляем альбом с максимум 10 фотографиями
-                    const messageGroup = await bot.sendMediaGroup(config.channelId, mediaGroup);
-        
-                    // Сохраняем message_id в базе данных
+                    // Сохраняем message_id в базе данных и помечаем объявление опубликованным
                     const messageIds = messageGroup.map(message => message.message_id);
-                    await DB.markAdAsPosted(ad.ad_id, messageIds);
+                    await DB.markAdAsPosted(ad.id, messageIds, channelId);
         
-                    // Добавляем паузу между отправками (например, 1-2 секунды)
-                    await delay(2000);
+                    await delay(5000);
                 } catch (error) {
-                    if (error.response && error.response.statusCode === 429) {
-                        const retryAfter = error.response.parameters?.retry_after || 30;
-                        console.log(`Превышено количество запросов. Ожидаем ${retryAfter} секунд...`);
-                        await delay(retryAfter * 1000); // Ждем, сколько предложит Telegram
-                    } else {
-                        console.error('Ошибка при отправке объявления:', error);
-                    }
+                    console.error('Ошибка при отправке объявления:', error);
                 }
-         }, i * config.postIntervalMinutes * 60 * 1000);
-        }
+            }
+        }, i * config.postIntervalMinutes * 60 * 1000);
     }
+}
+
+// Функция для формирования сообщения
+function generateAdMessage(ad) {
+    const roomTypeText = ad.room_type === 'room' ? '' : ad.room_type === 'bed_space' ? ' (койко-место)' : '';
+    const roomLocationText = ad.room_location === 'apartment' ? '' :
+                             ad.room_location === 'hostel' ? 'в хостеле' :
+                             ad.room_location === 'hotel' ? 'в гостинице' : '';
+
+    const message = `
+🏠 *Сдается* ${ad.house_type === 'apartment' ? ad.rooms + '-комн.квартира' : ad.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}, ${ad.area} м²${ad.floor_current && ad.floor_total ? `, ${ad.floor_current}/${ad.floor_total} этаж` : ''}${ad.bed_capacity ? ', спальных мест - ' + ad.bed_capacity : ''}
+*Адрес:* г.${ad.city}, ${ad.district}, ${ad.microdistrict ? ad.microdistrict + ', ' : ''} ${ad.address}
+*Сдает:* ${ad.author === 'Хозяин недвижимости' ? 'собственник' : 'посредник'}
+*Цена:* ${ad.price} ₸
+*Контакты:* ${ad.phone} ${[ad.whatsapp ? `[WhatsApp](https://api.whatsapp.com/send?phone=${ad.phone})` : '', ad.tg_username ? `[Telegram](https://t.me/${ad.tg_username})` : ''].filter(Boolean).join(' ')}
+🛋️ *Удобства*: ${[
+        ad.toilet ? ad.toilet : '',
+        ad.bathroom ? ad.bathroom : '',
+        ad.furniture ? ad.furniture : '',
+        ad.facilities ? ad.facilities : ''
+    ].filter(Boolean).join(', ')}
+📜 *Правила заселения*: ${[
+        ad.rental_options ? ad.rental_options : ''
+    ].filter(Boolean).join(', ')}
+📝 *Описание*:
+${ad.description ? ad.description : ''}
+`;
+
+    const trimmedMessage = message.length > 1024 
+                        ? message.substring(0, message.lastIndexOf(' ', 1024)) + '...' 
+                        : message;
+
+    return trimmedMessage;
 }
 
 // Функция для удаления сообщений из Telegram-канала и обновления базы данных
 async function removeOutdatedAdsFromChannel() {
+    console.log('Начинается удаление устаревших объявлений');
     const adsToDelete = await DB.getOutdatedAds();
 
     for (const ad of adsToDelete) {
@@ -115,10 +127,10 @@ async function removeOutdatedAdsFromChannel() {
             let successDeleted = false;
             for (const messageId of messageIds) {
                 try {
-                    const deleteResult = await bot.deleteMessage(config.channelId, messageId);
+                    const deleteResult = await bot.deleteMessage(ad.tg_channel, messageId);
                     if (deleteResult) successDeleted = true;
                 } catch (err) {
-                    console.error(`Ошибка при удалении из канала ${config.channelId} сообщения ${messageId}:`, err);
+                    console.error(`Ошибка при удалении из канала ${ad.tg_channel} сообщения ${messageId}:`, err);
                 }
             }
 
@@ -126,6 +138,10 @@ async function removeOutdatedAdsFromChannel() {
             if (successDeleted) {
                 await DB.markAdAsInactive(ad.id);
                 console.log(`Объявление с ID ${ad.id} удалено, статус объявления обновлен.`);
+
+                // Удаляем изображения из S3 после обновления статуса
+                const photoNames = ad.converted_photos;
+                await deleteImagesFromS3(photoNames);
             }
         } catch (error) {
             console.error(`Ошибка при удалении сообщения ${ad.message_id}:`, error);
@@ -133,23 +149,36 @@ async function removeOutdatedAdsFromChannel() {
     }
 }
 
+// Функция для удаления файла из S3
+async function deleteImagesFromS3(photoNames) {
+    const deleteParams = {
+        Bucket: config.s3bucketName,
+        Delete: {
+            Objects: photoNames.map((name) => ({ Key: `images/${name}` })),
+            Quiet: false, // Если true, то возвращает только ошибки при удалении, но не удалённые объекты
+        }
+    };
+
+    try {
+        const deleteResult = await s3.deleteObjects(deleteParams).promise();
+        console.log('Изображения успешно удалены из S3:', deleteResult);
+    } catch (error) {
+        console.error('Ошибка при удалении изображений из S3:', error);
+    }
+}
+
 // Функция для планирования задач
 function schedulePosts() {
+    removeOutdatedAdsFromChannel();
+
     config.postTimes.forEach(time => {
         const [hour, minute] = time.split(':');
+        console.log(`Запланирована отправка в ${hour}:${minute}`);
 
         // Планировщик отправки объявлений
         cron.schedule(`${minute} ${hour} * * *`, async () => {
             console.log(`Начинается отправка объявлений в ${time}`);
-            await postAdsForCitiesWithInterval();
+            await postAds();
         });
     });
-
-    // Планировщик удаления устаревших объявлений каждую ночь в 2:00
-    cron.schedule('0 2 * * *', async () => {
-        console.log('Начинается удаление устаревших объявлений в 2:00');
-        await removeOutdatedAdsFromChannel();
-    });
 }
-
-schedulePosts();
