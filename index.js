@@ -38,7 +38,11 @@ async function postAds() {
         return acc;
     }, {});
     
-    console.log(groupedAdsByCity)
+    const logMessage = Object.entries(groupedAdsByCity)
+    .map(([city, ads]) => `${city}: ${ads.length}`)
+    .join('; ');
+
+    console.log(logMessage);
 
         for (let i = 0; i < maxPosts; i++) {
         setTimeout(async () => {
