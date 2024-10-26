@@ -14,7 +14,7 @@ function delay(ms) {
 }
 
 // Ежедевный запуск в 00:00
-cron.schedule('0 0 * * *', () => {
+cron.schedule(config.cronSchedule, () => {
     console.log('Запуск планировщика объявлений в 00:00');
     schedulePosts();
 });
@@ -51,22 +51,24 @@ async function postAds() {
                 try {
                     const message = generateAdMessage(ad);
         
-                    // Ограничиваем количество фотографий до 10
-                    /*const photoURLs = ad.photos.slice(0, 10);
-                    const mediaGroup = photoURLs.map((url, index) => ({
-                        type: 'photo',
-                        media: url,
-                        caption: index === 0 ? message : '',
-                        parse_mode: 'Markdown'
-                    }));*/
-        
-                    const photoNames = ad.converted_photos.slice(0, 10);
-                    const mediaGroup = photoNames.map((name, index) => ({
-                        type: 'photo',
-                        media: `${config.s3domain}/images/${name}`,
-                        caption: index === 0 ? message : '',
-                        parse_mode: 'Markdown'
-                    }));
+                    let mediaGroup;
+                    if (config.photoType === 'original') {
+                        const photoURLs = ad.photos.slice(0, 10);
+                        mediaGroup = photoURLs.map((url, index) => ({
+                            type: 'photo',
+                            media: url,
+                            caption: index === 0 ? message : '',
+                            parse_mode: 'Markdown'
+                        }));
+                    } else {
+                        const photoNames = ad.converted_photos.slice(0, 10);
+                        mediaGroup = photoNames.map((name, index) => ({
+                            type: 'photo',
+                            media: `${config.s3domain}/images/${name}`,
+                            caption: index === 0 ? message : '',
+                            parse_mode: 'Markdown'
+                        }));
+                    }
 
                     const messageGroup = await bot.sendMediaGroup(channelId, mediaGroup);
         
