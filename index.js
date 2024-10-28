@@ -13,12 +13,6 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Ежедевный запуск в 00:00
-cron.schedule(config.cronSchedule, () => {
-    console.log('Запуск планировщика объявлений в 00:00');
-    schedulePosts();
-});
-
 //postAds();
 
 // Функция для отправки объявлений
@@ -173,9 +167,8 @@ async function deleteImagesFromS3(photoNames) {
     }
 }
 
-// Функция для планирования задач
+// Функция для планирования задач отправки объявлений
 function schedulePosts() {
-    removeOutdatedAdsFromChannel();
 
     config.postTimes.forEach(time => {
         const [hour, minute] = time.split(':');
@@ -188,3 +181,11 @@ function schedulePosts() {
         });
     });
 }
+
+// cron для удаления устаревших объявлений каждый день в 00:00
+cron.schedule(config.cronSchedule, () => {
+    console.log('Запуск удаления устаревших объявлений в 00:00');
+    removeOutdatedAdsFromChannel();
+});
+
+schedulePosts();
