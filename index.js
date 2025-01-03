@@ -111,6 +111,7 @@ function generateAdMessage(ad) {
             ad.facilities ? ad.facilities : ''
         ].filter(Boolean).join(', ')}`,
         ad.rental_options ? `📜 *Правила заселения*: ${ad.rental_options}` : '',
+        ad.condition ? `🧱 *Состояние*: ${ad.condition == 'дизайнерский' ? 'дизайнерский ремонт' : ad.condition }` : '',
         `📝 *Описание*:\n${ad.description ? ad.description : ''}`,
     ];
 
