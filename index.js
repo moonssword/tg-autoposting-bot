@@ -50,7 +50,7 @@ async function postAds() {
                     const message = generateAdMessage(ad);
         
                     let mediaGroup;
-                    if (config.photoType === 'original') {
+                    if (config.photoType === 'original_with_wm') {
                         const photoURLs = ad.photos.slice(0, 10);
                         mediaGroup = photoURLs.map((url, index) => ({
                             type: 'photo',
@@ -58,11 +58,19 @@ async function postAds() {
                             caption: index === 0 ? message : '',
                             parse_mode: 'Markdown'
                         }));
-                    } else {
+                    } else if (config.photoType === 'converted') {
                         const photoNames = ad.converted_photos.slice(0, 10);
                         mediaGroup = photoNames.map((name, index) => ({
                             type: 'photo',
                             media: `${config.s3domain}/images/${name}`,
+                            caption: index === 0 ? message : '',
+                            parse_mode: 'Markdown'
+                        }));
+                    } else {
+                        const photoURLs = ad.converted_photos.slice(0, 10);
+                        mediaGroup = photoURLs.map((url, index) => ({
+                            type: 'photo',
+                            media: url,
                             caption: index === 0 ? message : '',
                             parse_mode: 'Markdown'
                         }));
@@ -90,24 +98,23 @@ function generateAdMessage(ad) {
                              ad.room_location === 'hostel' ? 'в хостеле' :
                              ad.room_location === 'hotel' ? 'в гостинице' : '';
 
-    const message = `
-🏠 *Сдается* ${ad.house_type === 'apartment' ? ad.rooms + '-комн.квартира' : ad.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}, ${ad.area} м²${ad.floor_current && ad.floor_total ? `, ${ad.floor_current}/${ad.floor_total} этаж` : ''}${ad.bed_capacity ? ', спальных мест - ' + ad.bed_capacity : ''}
-*Адрес:* г.${ad.city}, ${ad.district} р-н, ${ad.microdistrict ? ad.microdistrict + ', ' : ''} ${ad.address}
-*Сдает:* ${ad.author === 'Хозяин недвижимости' ? 'собственник' : 'посредник'}
-*Цена:* ${ad.price} ₸
-*Контакты:* ${ad.phone} ${[ad.whatsapp ? `[WhatsApp](https://api.whatsapp.com/send?phone=${ad.phone})` : '', ad.tg_username ? `[Telegram](https://t.me/${ad.tg_username})` : ''].filter(Boolean).join(' ')}
-🛋️ *Удобства*: ${[
-        ad.toilet ? ad.toilet : '',
-        ad.bathroom ? ad.bathroom : '',
-        ad.furniture ? ad.furniture : '',
-        ad.facilities ? ad.facilities : ''
-    ].filter(Boolean).join(', ')}
-📜 *Правила заселения*: ${[
-        ad.rental_options ? ad.rental_options : ''
-    ].filter(Boolean).join(', ')}
-📝 *Описание*:
-${ad.description ? ad.description : ''}
-`;
+    const messageParts = [
+        `🏠 *Сдается* ${ad.house_type === 'apartment' ? ad.rooms + '-комн.квартира' : ad.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? ', ' + ad.area + ' м²' : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? ', спальных мест - ' + ad.bed_capacity : ''}`,
+        `*Адрес:* г.${ad.city}, ${ad.district ? ad.district + ' р-н' : ''} ${ad.microdistrict ? ', ' + ad.microdistrict : ''} ${ad.address ? ', ' + ad.address : ''}`,
+        `*Сдает:* ${ad.author === 'Хозяин недвижимости' || ad.author === 'owner' ? 'собственник' : 'посредник'}`,
+        `*Цена:* ${ad.price} ₸`,
+        `*Контакты:* ${ad.phone} ${[ad.whatsapp ? `[WhatsApp](https://api.whatsapp.com/send?phone=${ad.phone})` : '', ad.tg_username ? `[Telegram](https://t.me/${ad.tg_username})` : ''].filter(Boolean).join(' ')}`,
+        `🛋️ *Удобства*: ${[
+            ad.toilet ? ad.toilet : '',
+            ad.bathroom ? ad.bathroom : '',
+            ad.furniture ? ad.furniture : '',
+            ad.facilities ? ad.facilities : ''
+        ].filter(Boolean).join(', ')}`,
+        ad.rental_options ? `📜 *Правила заселения*: ${ad.rental_options}` : '',
+        `📝 *Описание*:\n${ad.description ? ad.description : ''}`,
+    ];
+
+    const message = messageParts.filter(Boolean).join('\n');                            
 
     const trimmedMessage = message.length > 1024 
                         ? message.substring(0, message.lastIndexOf(' ', 1024)) + '...' 

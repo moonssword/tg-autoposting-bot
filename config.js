@@ -9,6 +9,7 @@ module.exports = {
     cityChannels: JSON.parse(process.env.CITY_CHANNELS), // {"City": "@channel_name OR ID", ...etc}
     postTimes: JSON.parse(process.env.POST_TIMES), // Массив со значениями времени отправки ["08:00", "13:00", "19:00"]
     cronSchedule: process.env.CRON_SCHEDULE,
+    adSource: process.env.SOURCE,
     dbConfig: {
         user: process.env.DB_USER,
         host: process.env.DB_HOST,

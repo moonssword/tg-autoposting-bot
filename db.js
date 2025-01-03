@@ -14,8 +14,8 @@ async function getAds(cities, count) {
             FROM ads
             WHERE is_active = true
             AND is_posted = false
-            AND posted_at > NOW() - INTERVAL '1 week'
-            AND source = 'parser'
+            AND posted_at > NOW() - INTERVAL '1 month'
+            AND source = '${config.adSource}'
             AND converted_photos IS NOT NULL
             AND city IN (${cityPlaceholders})  -- Ограничиваем выборку по городам
         ) AS ranked_ads
