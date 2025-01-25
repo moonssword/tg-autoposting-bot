@@ -36,7 +36,7 @@ async function postAds() {
     .map(([city, ads]) => `${city}: ${ads.length}`)
     .join('; ');
 
-    console.log(logMessage);
+    //console.log(logMessage);
 
         for (let i = 0; i < maxPosts; i++) {
         setTimeout(async () => {
@@ -124,35 +124,17 @@ function generateAdMessage(ad) {
     return trimmedMessage;
 }
 
-// Функция для удаления сообщений из Telegram-канала и обновления базы данных
-async function removeOutdatedAdsFromChannel() {
-    console.log('Начинается удаление устаревших объявлений');
-    const adsToDelete = await DB.getOutdatedAds();
+// Функция для деактивации устаревших объявлений
+async function deactivateOutdatedAds() {
+    console.log('Начинается деактивация устаревших объявлений');
+    const adsToDeactivate = await DB.getOutdatedAds();
 
-    for (const ad of adsToDelete) {
+    for (const ad of adsToDeactivate) {
         try {
-            const messageIds = ad.message_id;
-            let successDeleted = false;
-            for (const messageId of messageIds) {
-                try {
-                    const deleteResult = await bot.deleteMessage(ad.tg_channel, messageId);
-                    if (deleteResult) successDeleted = true;
-                } catch (err) {
-                    console.error(`Ошибка при удалении из канала ${ad.tg_channel} сообщения ${messageId}:`, err);
-                }
-            }
-
-            // После успешного удаления, обновляем базу данных
-            if (successDeleted) {
-                await DB.markAdAsInactive(ad.id);
-                console.log(`Объявление с ID ${ad.id} удалено, статус объявления обновлен.`);
-
-                // Удаляем изображения из S3 после обновления статуса
-                const photoNames = ad.converted_photos;
-                await deleteImagesFromS3(photoNames);
-            }
+            await DB.markAdAsInactive(ad.id);
+            console.log(`Объявление с ID ${ad.id} деактивировано.`);
         } catch (error) {
-            console.error(`Ошибка при удалении сообщения ${ad.message_id}:`, error);
+            console.error(`Ошибка при деактивации объявления ${ad.id}:`, error);
         }
     }
 }
@@ -190,10 +172,10 @@ function schedulePosts() {
     });
 }
 
-// cron для удаления устаревших объявлений каждый день в 00:00
+// Планировщик для деактивации устаревших объявлений каждый день в 00:00
 cron.schedule(config.cronSchedule, () => {
-    console.log('Запуск удаления устаревших объявлений в 00:00');
-    removeOutdatedAdsFromChannel();
+    console.log('Запуск деактивации устаревших объявлений в 00:00');
+    deactivateOutdatedAds();
 });
 
 schedulePosts();
