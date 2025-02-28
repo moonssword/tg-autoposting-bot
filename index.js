@@ -98,7 +98,8 @@ function generateAdMessage(ad) {
                              ad.room_location === 'hostel' ? 'в хостеле' :
                              ad.room_location === 'hotel' ? 'в гостинице' : '';
 
-    const escapeMarkdown = (text) => text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');                   
+    const escapeMarkdown = (text) => text.replace(/([_*[\]()~`>#+\-=|{}!])/g, '\u00A0$1');
+
     const messageParts = [
         `🏠 *Сдается* ${ad.house_type === 'apartment' ? ad.rooms + '-комн.квартира' : ad.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? ', ' + ad.area + ' м²' : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? ', спальных мест - ' + ad.bed_capacity : ''}`,
         `*Адрес:* г.${ad.city}, ${ad.district ? ad.district + ' р-н' : ''} ${ad.microdistrict ? ', ' + ad.microdistrict : ''} ${ad.address ? ', ' + ad.address : ''}`,
