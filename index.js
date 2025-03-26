@@ -56,7 +56,7 @@ async function postAds() {
                             type: 'photo',
                             media: url,
                             caption: index === 0 ? message : '',
-                            parse_mode: 'Markdown'
+                            parse_mode: 'HTML'
                         }));
                     } else if (config.photoType === 'converted') {
                         const photoNames = ad.converted_photos.slice(0, 10);
@@ -64,7 +64,7 @@ async function postAds() {
                             type: 'photo',
                             media: `${config.s3domain}/images/${name}`,
                             caption: index === 0 ? message : '',
-                            parse_mode: 'Markdown'
+                            parse_mode: 'HTML'
                         }));
                     } else {
                         const photoURLs = ad.converted_photos.slice(0, 10);
@@ -72,7 +72,7 @@ async function postAds() {
                             type: 'photo',
                             media: url,
                             caption: index === 0 ? message : '',
-                            parse_mode: 'Markdown'
+                            parse_mode: 'HTML'
                         }));
                     }
 
@@ -101,20 +101,15 @@ function generateAdMessage(ad) {
     const escapeMarkdown = (text) => text.replace(/([_*[\]()~`>#+\-=|{}!])/g, '\\$1');
 
     const messageParts = [
-        `🏠 *Сдается* ${ad.house_type === 'apartment' ? ad.rooms + '-комн.квартира' : ad.house_type === 'room' ? 'комната' + roomTypeText + (roomLocationText ? ' ' + roomLocationText : '') : 'дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? ', ' + ad.area + ' м²' : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? ', спальных мест - ' + ad.bed_capacity : ''}`,
-        `*Адрес:* г.${ad.city}, ${ad.district ? ad.district + ' р-н' : ''} ${ad.microdistrict ? ', ' + ad.microdistrict : ''} ${ad.address ? ', ' + ad.address : ''}`,
-        `*Сдает:* ${ad.author === 'Хозяин недвижимости' || ad.author === 'owner' ? 'собственник' : 'посредник'}`,
-        `*Цена:* ${ad.price} ₸`,
-        `*Контакты:* ${ad.phone} ${[ad.whatsapp ? `[WhatsApp](https://api.whatsapp.com/send?phone=${ad.phone})` : '', ad.tg_username ? `[Telegram](https://t.me/${ad.tg_username})` : ''].filter(Boolean).join(' ')}`,
-        `🛋️ *Удобства*: ${[
-            ad.toilet ? ad.toilet : '',
-            ad.bathroom ? ad.bathroom : '',
-            ad.furniture ? ad.furniture : '',
-            ad.facilities ? ad.facilities : ''
-        ].filter(Boolean).join(', ')}`,
-        ad.rental_options ? `📜 *Правила заселения*: ${ad.rental_options}` : '',
-        ad.condition ? `🧱 *Состояние*: ${ad.condition == 'дизайнерский' ? 'дизайнерский ремонт' : ad.condition }` : '',
-        `📝 *Описание*:\n${ad.description ? escapeMarkdown(ad.description) : ''}`,
+        `🏠 <b>Сдается</b> ${ad.house_type === 'apartment' ? `${ad.rooms}-комн. квартира` : ad.house_type === 'room' ? `Комната ${roomTypeText}${roomLocationText ? ` (${roomLocationText})` : ''}` : 'Дом'}${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? `, ${ad.area} м²` : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? `, 🛏 ${ad.bed_capacity} спальных мест` : ''}`,
+        `📍 <b>Адрес:</b> г.${ad.city}, ${ad.district ? ad.district + ' р-н' : ''} ${ad.microdistrict ? ', ' + ad.microdistrict : ''} ${ad.address ? ', ' + ad.address : ''}`,
+        `👤 <b>Сдает:</b> ${ad.author === 'Хозяин недвижимости' || ad.author === 'owner' ? 'собственник' : 'посредник'}`,
+        `💰 <b>Цена:</b> ${ad.price} ₸`,
+        `📞 <b>Контакты:</b> ${ad.phone} ${`<a href="https://api.whatsapp.com/send?phone=${ad.phone.replace(/[^0-9]/g, '').replace(/^8/, '7')}">WhatsApp</a>`}`,
+        `🛋️ <b>Удобства:</b> ${[ad.toilet, ad.bathroom, ad.furniture, ad.facilities].filter(Boolean).join(', ') || ''}`,
+        ad.rental_options ? `📜 <b>Правила заселения:</b> ${ad.rental_options}` : '',
+        ad.condition ? `🧱 <b>Состояние:</b> ${ad.condition === 'дизайнерский' ? 'дизайнерский ремонт' : ad.condition}` : '',
+        `📝 <b>Описание:</b> ${ad.description ? ad.description.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}`,
     ];
 
     const message = messageParts.filter(Boolean).join('\n');                            
