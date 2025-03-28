@@ -101,10 +101,10 @@ function generateAdMessage(ad) {
     const escapeMarkdown = (text) => text.replace(/([_*[\]()~`>#+\-=|{}!])/g, '\\$1');
 
     const messageParts = [
-        `🏠 <b>Сдается</b> ${ad.house_type === 'apartment' ? `${ad.rooms}-комн. квартира` : ad.house_type === 'room' ? `Комната ${roomTypeText}${roomLocationText ? ` (${roomLocationText})` : ''}` : 'Дом'}${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? `, ${ad.area} м²` : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? `, 🛏 ${ad.bed_capacity} спальных мест` : ''}`,
+        `🏠 <b>Сдается</b> ${ad.house_type === 'apartment' ? `${ad.rooms}-комн. квартира` : ad.house_type === 'room' ? `Комната ${roomTypeText}${roomLocationText ? ` (${roomLocationText})` : ''}` : 'Дом'} ${ad.duration === 'long_time' ? 'на длительный срок' : 'посуточно'}${ad.area ? `, ${ad.area} м²` : ''}${ad.floor_current ? `, ${ad.floor_current}${ad.floor_total ? '/' + ad.floor_total : ''} этаж` : ''}${ad.bed_capacity ? `, 🛏 ${ad.bed_capacity} спальных мест` : ''}`,
         `📍 <b>Адрес:</b> г.${ad.city}, ${ad.district ? ad.district + ' р-н' : ''} ${ad.microdistrict ? ', ' + ad.microdistrict : ''} ${ad.address ? ', ' + ad.address : ''}`,
         `👤 <b>Сдает:</b> ${ad.author === 'Хозяин недвижимости' || ad.author === 'owner' ? 'собственник' : 'посредник'}`,
-        `💰 <b>Цена:</b> ${ad.price} ₸`,
+        `💰 <b>Цена:</b> ${ad.price.toLocaleString('ru-RU')} ₸`,
         `📞 <b>Контакты:</b> ${ad.phone} ${`<a href="https://api.whatsapp.com/send?phone=${ad.phone.replace(/[^0-9]/g, '').replace(/^8/, '7')}">WhatsApp</a>`}`,
         `🛋️ <b>Удобства:</b> ${[ad.toilet, ad.bathroom, ad.furniture, ad.facilities].filter(Boolean).join(', ') || ''}`,
         ad.rental_options ? `📜 <b>Правила заселения:</b> ${ad.rental_options}` : '',
@@ -112,8 +112,7 @@ function generateAdMessage(ad) {
         `📝 <b>Описание:</b> ${ad.description ? ad.description.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}`,
     ];
 
-    const message = messageParts.filter(Boolean).join('\n');                            
-
+    const message = messageParts.filter(Boolean).join('\n');
     const trimmedMessage = message.length > 1024 
                         ? message.substring(0, message.lastIndexOf(' ', 1024)) + '...' 
                         : message;
